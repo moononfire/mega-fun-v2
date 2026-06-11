@@ -1,7 +1,7 @@
-from flask import Flask, session
-from config import SECRET_KEY
-
 def create_app():
+    from flask import Flask, session
+    from config import SECRET_KEY
+
     app = Flask(__name__, template_folder="../templates", static_folder="../static")
     app.secret_key = SECRET_KEY
 
