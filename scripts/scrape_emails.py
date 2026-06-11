@@ -16,7 +16,15 @@ import time
 import random
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from urllib.parse import urljoin, urlparse, quote, urlunparse
+
+# VPS Worker: client context
+CLIENT_SLUG = sys.argv[1] if len(sys.argv) > 1 else "default"
+BASE_DIR    = Path(f"/home/deploy/clients/{CLIENT_SLUG}")
+INPUT_DIR   = BASE_DIR / "input"
+OUTPUT_DIR  = BASE_DIR / "output"
+params_kv   = dict(arg.split("=", 1) for arg in sys.argv[2:] if "=" in arg)
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

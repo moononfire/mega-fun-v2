@@ -3,9 +3,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE = os.path.join(BASE_DIR, "mega_fun.db")
-SECRET_KEY = os.environ.get("SECRET_KEY")
-if not SECRET_KEY:
-    raise RuntimeError("SECRET_KEY nie jest ustawiony w .env")
-APP_PASSWORD = os.environ.get("APP_PASSWORD", "change-me")
+VPS_WORKER_TOKEN = os.environ["VPS_WORKER_TOKEN"]
+CLIENTS_DIR = os.environ.get("CLIENTS_DIR", "/home/deploy/clients")
+SCRIPTS_DIR = os.environ.get("SCRIPTS_DIR", "/home/deploy/scripts")
+DATABASE_PATH = os.environ.get("DATABASE_PATH", "/home/deploy/worker.db")
+PORT = int(os.environ.get("PORT", 8001))

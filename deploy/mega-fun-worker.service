@@ -1,0 +1,14 @@
+[Unit]
+Description=Mega-Fun VPS Worker
+After=network.target
+
+[Service]
+User=deploy
+WorkingDirectory=/home/deploy/worker
+ExecStart=/home/deploy/worker/venv/bin/uvicorn worker.main:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=5
+EnvironmentFile=/home/deploy/worker/.env
+
+[Install]
+WantedBy=multi-user.target
