@@ -5,7 +5,7 @@
 System składa się z dwóch aplikacji współpracujących przez HTTPS:
 
 ```
-agency-platform (Vercel)
+agency-platform (Vercel)s
     ↓ Admin API (Bearer token)
 Next.js Script Runner (Vercel)
     ↓ Worker API (Bearer token)
