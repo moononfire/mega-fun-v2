@@ -8,7 +8,6 @@ Saves results to businesses table and logs to operations_log.
 
 import sys
 import os
-import argparse
 import json
 import time
 from pathlib import Path
@@ -219,35 +218,36 @@ def scrape_recursive(api_key, query, sw, ne, db, op_id, depth=0, stats=None, wor
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("query", help="Search query for Google Maps")
-    parser.add_argument("--coords-sw", type=str, default=None,
-                        help="SW corner: lat,lng (e.g. 48.1,16.3)")
-    parser.add_argument("--coords-ne", type=str, default=None,
-                        help="NE corner: lat,lng (e.g. 48.3,16.6)")
-    parser.add_argument("--op-id", type=int, default=None, help="Operations log ID (set by Flask)")
-    args = parser.parse_args()
+    # Params passed by VPS runner as key=value pairs (sys.argv[2:] after client_slug)
+    query = params_kv.get("query", "").strip()
+    if not query:
+        print(json.dumps({"error": "Brakuje parametru 'query'"}))
+        sys.exit(1)
+    coords_sw = params_kv.get("coords_sw") or params_kv.get("coords-sw") or None
+    coords_ne = params_kv.get("coords_ne") or params_kv.get("coords-ne") or None
+    op_id_raw = params_kv.get("op_id") or params_kv.get("op-id")
+    op_id = int(op_id_raw) if op_id_raw else None
 
     api_key = get_api_key()
     if not api_key:
         msg = "Brak klucza API. Ustaw go w Ustawieniach."
-        if args.op_id:
-            log_operation("error", msg, args.op_id)
+        if op_id:
+            log_operation("error", msg, op_id)
         print(json.dumps({"error": msg}))
         sys.exit(1)
 
     workspace_id = int(os.environ.get("WORKSPACE_ID", "1"))
-    op_id = args.op_id or log_operation("running", f"Query: {args.query}")
+    op_id = op_id or log_operation("running", f"Query: {query}")
 
     try:
-        print(json.dumps({"status": "searching", "query": args.query}), flush=True)
+        print(json.dumps({"status": "searching", "query": query}), flush=True)
 
-        if args.coords_sw and args.coords_ne:
+        if coords_sw and coords_ne:
             # Recursive subdivision mode
-            sw = [float(x.strip()) for x in args.coords_sw.split(",")]
-            ne = [float(x.strip()) for x in args.coords_ne.split(",")]
+            sw = [float(x.strip()) for x in coords_sw.split(",")]
+            ne = [float(x.strip()) for x in coords_ne.split(",")]
             db = get_db()
-            stats = scrape_recursive(api_key, args.query, sw, ne, db, op_id, workspace_id=workspace_id)
+            stats = scrape_recursive(api_key, query, sw, ne, db, op_id, workspace_id=workspace_id)
             db.close()
 
             warning = (
@@ -258,20 +258,20 @@ def main():
             summary = (
                 f"Znaleziono {stats['found']}, zapisano {stats['saved']} nowych"
                 f"{', podzielono na ' + str(stats['areas']) + ' podobszarow' if stats['subdivisions'] else ''}"
-                f" (query: {args.query}){warning}"
+                f" (query: {query}){warning}"
             )
         else:
             # No bounding box — flat scrape (no subdivision possible)
-            places = search_places(api_key, args.query, None, None)
+            places = search_places(api_key, query, None, None)
             db = get_db()
             saved = 0
             for i, place in enumerate(places):
-                if save_business(db, place, args.query, workspace_id):
+                if save_business(db, place, query, workspace_id):
                     saved += 1
                 print(json.dumps({"status": "progress", "current": i + 1, "total": len(places)}), flush=True)
             db.commit()
             db.close()
-            summary = f"Znaleziono {len(places)}, zapisano {saved} nowych (query: {args.query})"
+            summary = f"Znaleziono {len(places)}, zapisano {saved} nowych (query: {query})"
 
         log_operation("done", summary, op_id)
         print(json.dumps({"status": "done", "summary": summary}), flush=True)

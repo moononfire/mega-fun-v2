@@ -11,7 +11,6 @@ import sys
 import os
 import re
 import json
-import argparse
 import time
 import random
 import threading
@@ -413,28 +412,17 @@ def _scrape_one(biz, max_pages, counters, lock):
 
 
 def main():
-    # Read params from env vars (set by Flask to avoid [Errno 22] on Windows with non-ASCII CLI args).
-    # CLI args are kept as fallback for manual usage.
-    _env_op_id = os.environ.get("SCRAPE_OP_ID")
-    _env_max_pages = os.environ.get("SCRAPE_MAX_PAGES")
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--op-id", type=int,
-                        default=int(_env_op_id) if _env_op_id else None)
-    parser.add_argument("--source-query", type=str,
-                        default=os.environ.get("SCRAPE_SOURCE_QUERY") or None)
-    parser.add_argument("--business-ids", type=str,
-                        default=os.environ.get("SCRAPE_BUSINESS_IDS") or None)
-    parser.add_argument("--country", type=str,
-                        default=os.environ.get("SCRAPE_COUNTRY") or None)
-    parser.add_argument("--city", type=str,
-                        default=os.environ.get("SCRAPE_CITY") or None)
-    parser.add_argument("--max-pages", type=int,
-                        default=int(_env_max_pages) if _env_max_pages else DEFAULT_MAX_PAGES)
-    args = parser.parse_args()
+    # Params from VPS runner (key=value pairs in sys.argv[2:]) with env var fallback
+    op_id_raw = params_kv.get("op_id") or params_kv.get("op-id") or os.environ.get("SCRAPE_OP_ID")
+    max_pages_raw = params_kv.get("max_pages") or params_kv.get("max-pages") or os.environ.get("SCRAPE_MAX_PAGES")
+    source_query = params_kv.get("source_query") or params_kv.get("source-query") or os.environ.get("SCRAPE_SOURCE_QUERY") or None
+    business_ids = params_kv.get("business_ids") or params_kv.get("business-ids") or os.environ.get("SCRAPE_BUSINESS_IDS") or None
+    country = params_kv.get("country") or os.environ.get("SCRAPE_COUNTRY") or None
+    city = params_kv.get("city") or os.environ.get("SCRAPE_CITY") or None
+    max_pages = int(max_pages_raw) if max_pages_raw else DEFAULT_MAX_PAGES
 
     workspace_id = int(os.environ.get("WORKSPACE_ID", "1"))
-    op_id = args.op_id or log_operation("running", "Rozpoczynanie scrapowania emaili...")
+    op_id = (int(op_id_raw) if op_id_raw else None) or log_operation("running", "Rozpoczynanie scrapowania emaili...")
 
     try:
         db = get_db()
@@ -449,23 +437,23 @@ def main():
         ]
         params = [workspace_id]
 
-        if args.business_ids:
-            ids = [int(x.strip()) for x in args.business_ids.split(',') if x.strip()]
+        if business_ids:
+            ids = [int(x.strip()) for x in business_ids.split(',') if x.strip()]
             placeholders = ','.join('?' * len(ids))
             conditions.append(f"id IN ({placeholders})")
             params.extend(ids)
 
-        if args.source_query:
+        if source_query:
             conditions.append("source_query = ?")
-            params.append(args.source_query)
+            params.append(source_query)
 
-        if args.country:
+        if country:
             conditions.append("country = ?")
-            params.append(args.country)
+            params.append(country)
 
-        if args.city:
+        if city:
             conditions.append("city = ?")
-            params.append(args.city)
+            params.append(city)
 
         where = "WHERE " + " AND ".join(conditions)
         businesses = db.execute(
@@ -486,14 +474,14 @@ def main():
         db.commit()
         db.close()
 
-        log_operation("running", f"Skanowanie {total} stron www (max {args.max_pages} podstron/biznes, {NUM_WORKERS} watkow)...", op_id)
+        log_operation("running", f"Skanowanie {total} stron www (max {max_pages} podstron/biznes, {NUM_WORKERS} watkow)...", op_id)
         print(json.dumps({"status": "running", "total": total}), flush=True)
 
         counters = {'found': 0, 'saved': 0, 'errors': 0, 'pages_visited': 0, 'completed': 0}
         lock = threading.Lock()
 
         with ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
-            futures = {executor.submit(_scrape_one, biz, args.max_pages, counters, lock): biz for biz in businesses}
+            futures = {executor.submit(_scrape_one, biz, max_pages, counters, lock): biz for biz in businesses}
             for future in as_completed(futures):
                 future.result()  # re-raise any unexpected exceptions
                 with lock:
