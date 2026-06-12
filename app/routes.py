@@ -770,9 +770,9 @@ def _run_batch(queries, coords_sw, coords_ne, batch_op_id, workspace_id=1):
         db.commit()
         db.close()
 
-        cmd = [sys.executable, script, query, "--op-id", str(child_op_id)]
+        cmd = [sys.executable, script, "default", f"query={query}", f"op_id={child_op_id}"]
         if coords_sw and coords_ne:
-            cmd += ["--coords-sw", coords_sw, "--coords-ne", coords_ne]
+            cmd += [f"coords_sw={coords_sw}", f"coords_ne={coords_ne}"]
 
         env = os.environ.copy()
         env["WORKSPACE_ID"] = str(workspace_id)
@@ -827,9 +827,9 @@ def start_scrape():
         db.commit()
         db.close()
 
-        cmd = [sys.executable, script, query, "--op-id", str(op_id)]
+        cmd = [sys.executable, script, "default", f"query={query}", f"op_id={op_id}"]
         if coords_sw and coords_ne:
-            cmd += ["--coords-sw", coords_sw, "--coords-ne", coords_ne]
+            cmd += [f"coords_sw={coords_sw}", f"coords_ne={coords_ne}"]
         env = os.environ.copy()
         env["WORKSPACE_ID"] = str(workspace_id)
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
