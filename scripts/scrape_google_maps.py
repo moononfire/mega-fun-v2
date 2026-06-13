@@ -206,7 +206,7 @@ def save_csv(places, query):
     filename = f"results_{safe_query}.csv"
     path = OUTPUT_DIR / filename
     fieldnames = ["name", "address", "city", "country", "phone", "website", "category_google", "place_id"]
-    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(places)
