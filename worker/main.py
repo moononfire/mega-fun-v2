@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from config import VPS_WORKER_TOKEN, CLIENTS_DIR, SCRIPTS_DIR
 from worker.db import (
-    init_db, get_client, insert_client, update_client_status, delete_client,
+    init_db, get_db, get_client, insert_client, update_client_status, delete_client,
     insert_run, get_run, count_active_runs, count_all_active_runs, count_active_clients,
 )
 from worker.runner import execute_run
@@ -151,6 +151,49 @@ def get_run_status(vps_run_id: str):
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     return dict(run)
+
+
+@app.post("/runs/cleanup-stale", dependencies=[Depends(verify_token)])
+def cleanup_stale_runs():
+    """Sprawdza runy z status='running' i oznacza jako 'error' te, których PID już nie istnieje."""
+    import os
+    import signal
+    conn = get_db()
+    stale_runs = conn.execute(
+        "SELECT id, pid, client_slug FROM local_runs WHERE status = 'running'"
+    ).fetchall()
+
+    cleaned = []
+    still_running = []
+    no_pid = []
+
+    for run in stale_runs:
+        pid = run["pid"]
+        vps_run_id = run["id"]
+        if pid is None:
+            no_pid.append(vps_run_id)
+            conn.execute(
+                "UPDATE local_runs SET status = 'error', error_msg = 'Brak PID — worker restart?', finished_at = datetime('now') WHERE id = ?",
+                (vps_run_id,),
+            )
+        else:
+            try:
+                os.kill(pid, 0)  # sprawdza czy PID istnieje bez wysyłania sygnału
+                still_running.append({"id": vps_run_id, "pid": pid, "slug": run["client_slug"]})
+            except (ProcessLookupError, PermissionError):
+                cleaned.append({"id": vps_run_id, "pid": pid})
+                conn.execute(
+                    "UPDATE local_runs SET status = 'error', error_msg = 'Proces nie istnieje (PID %d)', finished_at = datetime('now') WHERE id = ?" % pid,
+                    (vps_run_id,),
+                )
+
+    conn.commit()
+    conn.close()
+    return {
+        "cleaned": cleaned,
+        "still_running": still_running,
+        "no_pid": no_pid,
+    }
 
 
 @app.get("/runs/{vps_run_id}/logs", dependencies=[Depends(verify_token)])
