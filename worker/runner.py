@@ -39,14 +39,18 @@ async def execute_run(
             await proc.wait()
 
         if proc.returncode == 0:
+            all_files = list(output_dir.iterdir()) if output_dir.exists() else []
             output_files = [
-                f.name for f in output_dir.iterdir()
-                if f.is_file() and f.stat().st_mtime > start_time
+                f.name for f in all_files
+                if f.is_file() and f.stat().st_mtime >= start_time
             ]
+            print(f"[runner] returncode=0 output_dir={output_dir} all_files={[f.name for f in all_files]} new_files={output_files} start_time={start_time}", flush=True)
             status, error_msg = "done", None
         else:
+            print(f"[runner] returncode={proc.returncode} — error", flush=True)
             status, error_msg = "error", f"Exit code: {proc.returncode}"
     except Exception as e:
+        print(f"[runner] EXCEPTION: {e}", flush=True)
         status, error_msg = "error", str(e)
 
     finish_run(vps_run_id, status, output_files, error_msg)
@@ -69,6 +73,7 @@ async def _notify_nextjs(
         "errorMessage": error_msg,
         "finishedAt": datetime.now(timezone.utc).isoformat(),
     }
+    print(f"[notify] SEND run_id={run_id} status={status} output_files={output_files} url={webhook_url}", flush=True)
     for attempt in range(3):
         try:
             async with httpx.AsyncClient() as client:
@@ -78,9 +83,10 @@ async def _notify_nextjs(
                     headers={"Authorization": f"Bearer {VPS_WORKER_TOKEN}"},
                     timeout=30,
                 )
+                print(f"[notify] attempt={attempt+1} HTTP={r.status_code} body={r.text[:300]}", flush=True)
                 if r.status_code == 200:
                     return
-                print(f"[notify] attempt {attempt+1}: webhook zwrócił {r.status_code}, retry…", flush=True)
         except Exception as e:
-            print(f"[notify] attempt {attempt+1}: wyjątek {e}, retry…", flush=True)
+            print(f"[notify] attempt={attempt+1} EXCEPTION={e}", flush=True)
         await asyncio.sleep(2 ** attempt)
+    print(f"[notify] FAILED all 3 attempts for run_id={run_id}", flush=True)
