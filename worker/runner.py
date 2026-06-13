@@ -76,9 +76,11 @@ async def _notify_nextjs(
                     webhook_url,
                     json=payload,
                     headers={"Authorization": f"Bearer {VPS_WORKER_TOKEN}"},
-                    timeout=10,
+                    timeout=30,
                 )
                 if r.status_code == 200:
                     return
-        except Exception:
-            await asyncio.sleep(2 ** attempt)
+                print(f"[notify] attempt {attempt+1}: webhook zwrócił {r.status_code}, retry…", flush=True)
+        except Exception as e:
+            print(f"[notify] attempt {attempt+1}: wyjątek {e}, retry…", flush=True)
+        await asyncio.sleep(2 ** attempt)
