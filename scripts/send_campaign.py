@@ -33,18 +33,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import sqlite3
 from config import DATABASE
 from app.crypto import decrypt
+from init_db import init_db
+
+init_db()
 
 
 def get_db():
     conn = sqlite3.connect(DATABASE, timeout=10)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=10000")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    """)
     conn.row_factory = sqlite3.Row
     return conn
 
