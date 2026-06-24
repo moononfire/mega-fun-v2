@@ -95,7 +95,11 @@ def search_places(api_key, query, coords_sw=None, coords_ne=None):
         "X-Goog-FieldMask": (
             "places.id,places.displayName,places.formattedAddress,"
             "places.addressComponents,places.types,"
-            "places.nationalPhoneNumber,places.websiteUri,nextPageToken"
+            "places.nationalPhoneNumber,places.internationalPhoneNumber,"
+            "places.websiteUri,places.googleMapsUri,"
+            "places.location,places.rating,places.userRatingCount,"
+            "places.businessStatus,places.regularOpeningHours,"
+            "nextPageToken"
         ),
     }
     body = {"textQuery": query, "pageSize": 20}
@@ -127,6 +131,10 @@ def search_places(api_key, query, coords_sw=None, coords_ne=None):
                     city = comp.get("longText", "")
                 elif "country" in types:
                     country = comp.get("longText", "")
+            location = place.get("location", {})
+            opening_hours = place.get("regularOpeningHours", {})
+            weekday_descriptions = opening_hours.get("weekdayDescriptions", [])
+
             results.append({
                 "name":            place.get("displayName", {}).get("text", ""),
                 "address":         place.get("formattedAddress", ""),
@@ -135,7 +143,15 @@ def search_places(api_key, query, coords_sw=None, coords_ne=None):
                 "category_google": ", ".join(place.get("types", [])),
                 "place_id":        place.get("id", ""),
                 "phone":           place.get("nationalPhoneNumber", ""),
+                "phone_international": place.get("internationalPhoneNumber", ""),
                 "website":         place.get("websiteUri", ""),
+                "google_maps_url": place.get("googleMapsUri", ""),
+                "latitude":        str(location.get("latitude", "")) if location.get("latitude") else "",
+                "longitude":       str(location.get("longitude", "")) if location.get("longitude") else "",
+                "rating":          str(place.get("rating", "")) if place.get("rating") else "",
+                "review_count":    str(place.get("userRatingCount", "")) if place.get("userRatingCount") else "",
+                "business_status": place.get("businessStatus", ""),
+                "opening_hours":   "|".join(weekday_descriptions) if weekday_descriptions else "",
             })
         next_page_token = data.get("nextPageToken")
         if not next_page_token:
@@ -205,7 +221,9 @@ def save_csv(places, query):
     safe_query = "".join(c if c.isalnum() or c in "-_ " else "_" for c in query).strip().replace(" ", "_")
     filename = f"results_{safe_query}.csv"
     path = OUTPUT_DIR / filename
-    fieldnames = ["name", "address", "city", "country", "phone", "website", "category_google", "place_id"]
+    fieldnames = ["name", "address", "city", "country", "phone", "phone_international", "website",
+                  "category_google", "place_id", "google_maps_url", "latitude", "longitude",
+                  "rating", "review_count", "business_status", "opening_hours"]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
