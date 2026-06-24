@@ -125,12 +125,21 @@ def search_places(api_key, query, coords_sw=None, coords_ne=None):
             raise Exception(f"API error {err.get('code')}: {err.get('message', '')}")
         for place in data.get("places", []):
             city = country = ""
+            admin3 = sublocality = postal_town = ""
             for comp in place.get("addressComponents", []):
                 types = comp.get("types", [])
                 if "locality" in types:
                     city = comp.get("longText", "")
+                elif "postal_town" in types:
+                    postal_town = comp.get("longText", "")
+                elif "administrative_area_level_3" in types:
+                    admin3 = comp.get("longText", "")
+                elif "sublocality" in types or "sublocality_level_1" in types:
+                    sublocality = comp.get("longText", "")
                 elif "country" in types:
                     country = comp.get("longText", "")
+            if not city:
+                city = postal_town or admin3 or sublocality
             location = place.get("location", {})
             opening_hours = place.get("regularOpeningHours", {})
             weekday_descriptions = opening_hours.get("weekdayDescriptions", [])
