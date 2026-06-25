@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import time
 import json
 from datetime import datetime, timezone
@@ -23,7 +24,7 @@ async def execute_run(
     start_time = time.time()
     output_files: list[str] = []
 
-    args = ["python3", str(Path(SCRIPTS_DIR) / f"{script}.py"), client_slug]
+    args = [sys.executable, str(Path(SCRIPTS_DIR) / f"{script}.py"), client_slug]
     for key, value in params.items():
         args.append(f"{key}={value}")
 
