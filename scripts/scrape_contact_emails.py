@@ -267,12 +267,12 @@ def main():
 
     total = len(contacts)
     if total == 0:
-        print(json.dumps({"status": "done", "found": 0}), flush=True)
+        print("Brak kontaktów do przeskanowania.", flush=True)
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         (OUTPUT_DIR / "emails.json").write_text(json.dumps({}))
         return
 
-    print(json.dumps({"status": "running", "total": total}), flush=True)
+    print(f"Start: {total} kontaktów, max {max_pages} podstron każda, {NUM_WORKERS} wątków.", flush=True)
 
     results = {}
     lock = threading.Lock()
@@ -283,15 +283,21 @@ def main():
             future.result()
             with lock:
                 done = results.get('__done__', 0)
-            print(json.dumps({"status": "progress", "current": done, "total": total}), flush=True)
+                found = len([k for k in results if k != '__done__'])
+            if done % 5 == 0 or done == total:
+                print(f"Postęp: {done}/{total} — znaleziono {found} emaili.", flush=True)
 
-    # Remove internal counter before saving
     output = {k: v for k, v in results.items() if k != '__done__'}
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUTPUT_DIR / "emails.json").write_text(json.dumps(output))
 
-    print(json.dumps({"status": "done", "found": len(output), "total": total}), flush=True)
+    if output:
+        print(f"Gotowe: znaleziono {len(output)} emaili z {total} kontaktów.", flush=True)
+        for contact_id, email in output.items():
+            print(f"  {contact_id[:8]}... → {email}", flush=True)
+    else:
+        print(f"Gotowe: nie znaleziono żadnych emaili ({total} kontaktów przeskanowanych).", flush=True)
 
 
 if __name__ == "__main__":
