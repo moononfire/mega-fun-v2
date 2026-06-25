@@ -233,15 +233,35 @@ def crawl_website(url, max_pages):
     return all_emails, None, len(visited)
 
 
-def _scrape_one(contact, max_pages, results, lock):
+def is_ignored_email(email, patterns):
+    """Return True if the email matches any ignored pattern."""
+    email_lower = email.lower()
+    for p in patterns:
+        p = p.strip().lower()
+        if not p:
+            continue
+        if p.startswith('@') and email_lower.endswith(p):
+            return True
+        if p.endswith('@') and email_lower.startswith(p):
+            return True
+        if email_lower == p:
+            return True
+    return False
+
+
+def _scrape_one(contact, max_pages, ignored_patterns, results, lock):
     contact_id = contact['id']
     website = contact['website']
     try:
-        emails, _error, _pages = crawl_website(website, max_pages)
-        if emails:
-            best = max(emails.keys(), key=score_email)
-            with lock:
-                results[contact_id] = best
+        emails_dict, _error, _pages = crawl_website(website, max_pages)
+        if emails_dict:
+            # Filter out ignored patterns
+            filtered = {e: s for e, s in emails_dict.items() if not is_ignored_email(e, ignored_patterns)}
+            if filtered:
+                # Sort all emails by score descending (best first)
+                sorted_emails = sorted(filtered.keys(), key=score_email, reverse=True)
+                with lock:
+                    results[contact_id] = sorted_emails
     except Exception:
         pass
     finally:
@@ -253,7 +273,12 @@ def _scrape_one(contact, max_pages, results, lock):
 def main():
     contacts_b64 = params_kv.get("contacts", "")
     max_pages_raw = params_kv.get("max_pages", "")
+    ignored_raw = params_kv.get("ignored_patterns", "")
     max_pages = int(max_pages_raw) if max_pages_raw else DEFAULT_MAX_PAGES
+    ignored_patterns = [p.strip() for p in ignored_raw.split(",") if p.strip()] if ignored_raw else []
+
+    if ignored_patterns:
+        print(f"Ignorowane wzorce ({len(ignored_patterns)}): {', '.join(ignored_patterns)}", flush=True)
 
     if not contacts_b64:
         print(json.dumps({"error": "Missing contacts param"}), flush=True)
@@ -278,24 +303,25 @@ def main():
     lock = threading.Lock()
 
     with ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        futures = {executor.submit(_scrape_one, c, max_pages, results, lock): c for c in contacts}
+        futures = {executor.submit(_scrape_one, c, max_pages, ignored_patterns, results, lock): c for c in contacts}
         for future in as_completed(futures):
             future.result()
             with lock:
                 done = results.get('__done__', 0)
                 found = len([k for k in results if k != '__done__'])
             if done % 5 == 0 or done == total:
-                print(f"Postęp: {done}/{total} — znaleziono {found} emaili.", flush=True)
+                print(f"Postęp: {done}/{total} — znaleziono emaile dla {found} kontaktów.", flush=True)
 
     output = {k: v for k, v in results.items() if k != '__done__'}
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUTPUT_DIR / "emails.json").write_text(json.dumps(output))
 
+    total_emails = sum(len(v) for v in output.values())
     if output:
-        print(f"Gotowe: znaleziono {len(output)} emaili z {total} kontaktów.", flush=True)
-        for contact_id, email in output.items():
-            print(f"  {contact_id[:8]}... → {email}", flush=True)
+        print(f"Gotowe: znaleziono {total_emails} emaili ({len(output)} kontaktów) z {total} przeskanowanych.", flush=True)
+        for contact_id, emails in output.items():
+            print(f"  {contact_id[:8]}... → {', '.join(emails)}", flush=True)
     else:
         print(f"Gotowe: nie znaleziono żadnych emaili ({total} kontaktów przeskanowanych).", flush=True)
 
